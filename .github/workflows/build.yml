@@ -1,4 +1,4 @@
-name: Build Android APK (Git)
+name: Build Android APK
 
 on:
   push:
@@ -10,8 +10,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Clone Target Repository
-      run: git clone "https://github.com/bocil-termux/build-apk.git" project_src
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
     - name: Set up Java 17
       uses: actions/setup-java@v4
@@ -24,209 +24,11 @@ jobs:
       with:
         gradle-version: '8.5'
 
-    - name: Build APK
-      run: |
-        cd project_src
-        
-        # 1. Deteksi Proyek Web Statis (HTML)
-        if [ -f "index.html" ] && [ ! -f "AndroidManifest.xml" ] && [ -z "$(find . -name build.gradle)" ]; then
-          echo "🌐 Terdeteksi proyek Web Statis. Membuat wrapper Android otomatis..."
-          mkdir -p android_wrapper/app/src/main/assets/www
-          cp -r * android_wrapper/app/src/main/assets/www/ 2>/dev/null || true
-          cd android_wrapper
-          
-          cat << 'EOF' > settings.gradle.kts
-pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-rootProject.name = "AutoWebWrapper"
-include(":app")
-EOF
-          
-          cat << 'EOF' > build.gradle.kts
-plugins { id("com.android.application") version "8.2.2" apply false; id("org.jetbrains.kotlin.android") version "1.9.22" apply false }
-EOF
-          
-          mkdir -p app
-          cat << 'EOF' > app/build.gradle.kts
-plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
-android {
-    namespace = "com.auto.webwrapper"
-    compileSdk = 34
-    defaultConfig { applicationId = "com.auto.webwrapper"; minSdk = 24; targetSdk = 34; versionCode = 1; versionName = "1.0" }
-    buildTypes { release { isMinifyEnabled = false } }
-    compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
-    kotlinOptions { jvmTarget = "17" }
-}
-dependencies {
-    implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("com.google.android.material:material:1.11.0")
-    implementation("androidx.webkit:webkit:1.10.0")
-}
-EOF
-          
-          mkdir -p app/src/main/res/values
-          cat << 'EOF' > app/src/main/res/values/strings.xml
-<resources><string name="app_name">Smart Web App</string></resources>
-EOF
-          
-          mkdir -p app/src/main/res/xml
-          cat << 'EOF' > app/src/main/res/xml/network_security_config.xml
-<?xml version="1.0" encoding="utf-8"?>
-<network-security-config>
-    <base-config cleartextTrafficPermitted="true" />
-</network-security-config>
-EOF
-          
-          cat << 'EOF' > app/src/main/AndroidManifest.xml
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET" />
-    <application android:allowBackup="true" android:label="@string/app_name" android:supportsRtl="true" android:theme="@style/Theme.AppCompat.NoActionBar" android:networkSecurityConfig="@xml/network_security_config">
-        <activity android:name=".MainActivity" android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
-</manifest>
-EOF
-          
-          mkdir -p app/src/main/java/com/auto/webwrapper
-          cat << 'EOF' > app/src/main/java/com/auto/webwrapper/MainActivity.kt
-package com.auto.webwrapper
-
-import android.annotation.SuppressLint
-import android.os.Bundle
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import androidx.appcompat.app.AppCompatActivity
-import androidx.webkit.WebViewAssetLoader
-
-class MainActivity : AppCompatActivity() {
-    private lateinit var webView: WebView
-
-    @SuppressLint("SetJavaScriptEnabled")
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        webView = WebView(this)
-        setContentView(webView)
-
-        webView.settings.apply {
-            javaScriptEnabled = true
-            domStorageEnabled = true
-            allowFileAccess = true
-            allowContentAccess = true
-        }
-
-        val assetLoader = WebViewAssetLoader.Builder()
-            .addPathHandler("/", WebViewAssetLoader.AssetsPathHandler(this))
-            .build()
-
-        webView.webViewClient = object : WebViewClient() {
-            override fun shouldInterceptRequest(
-                view: WebView,
-                request: WebResourceRequest
-            ): WebResourceResponse? {
-                return assetLoader.shouldInterceptRequest(request.url)
-            }
-        }
-
-        webView.loadUrl("https://appassets.androidplatform.net/www/index.html")
-    }
-
-    override fun onBackPressed() {
-        if (::webView.isInitialized && webView.canGoBack()) {
-            webView.goBack()
-        } else {
-            super.onBackPressed()
-        }
-    }
-}
-EOF
-          cd ..
-        fi
-
-        # 2. Find Root Dir
-        ROOT_DIR=$(dirname $(find . -name "settings.gradle" -o -name "settings.gradle.kts" | head -n 1) 2>/dev/null)
-        if [ -z "$ROOT_DIR" ]; then
-          ROOT_DIR=$(dirname $(find . -name "build.gradle" -o -name "build.gradle.kts" | head -n 1) 2>/dev/null)
-        fi
-        
-        if [ -z "$ROOT_DIR" ]; then
-          echo "❌ Gagal: Bukan proyek Android atau Web Statis yang dikenali."
-          exit 1
-        fi
-        
-        echo "✅ Root direktori proyek ditemukan di: $ROOT_DIR"
-        cd "$ROOT_DIR"
-
-        # 3. Smart Auto-Fixes
-        if [ -d "../custom_icon" ]; then
-          echo "🎨 Menerapkan Custom Icon..."
-          find . -type d -name "res" -exec cp -r ../custom_icon/* {}/ \;
-        fi
-
-        touch gradle.properties
-        sed -i 's/android.useAndroidX=false/android.useAndroidX=true/g' gradle.properties
-        sed -i 's/android.enableJetifier=false/android.enableJetifier=true/g' gradle.properties
-        echo "" >> gradle.properties
-        echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> gradle.properties
-        echo "android.useAndroidX=true" >> gradle.properties
-        echo "android.enableJetifier=true" >> gradle.properties
-        
-        # Disable lint errors crashing build
-        if [ -f "app/build.gradle" ]; then
-          if ! grep -q "lintOptions" app/build.gradle; then
-             echo "android { lintOptions { abortOnError false } }" >> app/build.gradle
-          fi
-        fi
-        if [ -f "app/build.gradle.kts" ]; then
-          if ! grep -q "lint" app/build.gradle.kts; then
-             echo "android { lint { abortOnError = false } }" >> app/build.gradle.kts
-          fi
-        fi
-
-        echo "🔍 Menjalankan Advanced Auto-Fixes..."
-        # Update Java versions to 17
-        find . -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' {} +
-        find . -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i 's/JavaVersion.VERSION_11/JavaVersion.VERSION_17/g' {} +
-        find . -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i 's/jvmTarget = "1.8"/jvmTarget = "17"/g' {} +
-        find . -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i 's/jvmTarget = "11"/jvmTarget = "17"/g' {} +
-        find . -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i "s/jvmTarget = '1.8'/jvmTarget = '17'/g" {} +
-        find . -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i "s/jvmTarget = '11'/jvmTarget = '17'/g" {} +
-
-        # Update compileSdk and targetSdk menggunakan flag Extended Regex (-E)
-        find . -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i -E 's/compileSdkVersion[ =]+[0-9]{2}/compileSdk = 34/g' {} +
-        find . -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i -E 's/compileSdk[ =]+[0-9]{2}/compileSdk = 34/g' {} +
-        find . -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i -E 's/targetSdkVersion[ =]+[0-9]{2}/targetSdk = 34/g' {} +
-        find . -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i -E 's/targetSdk[ =]+[0-9]{2}/targetSdk = 34/g' {} +
-        
-        # Add namespace if missing
-        if [ -f "app/build.gradle" ]; then
-           if ! grep -q "namespace" app/build.gradle; then
-              if [ -f "app/src/main/AndroidManifest.xml" ]; then
-                 PKG=$(grep -o 'package="[^"]*"' app/src/main/AndroidManifest.xml | cut -d'"' -f2)
-                 if [ -n "$PKG" ]; then
-                    sed -i "/android[ 	]*{/a    namespace '$PKG'" app/build.gradle
-                 fi
-              fi
-           fi
-        fi
-
-        # 4. Build
-        if [ -f "gradlew" ]; then
-          chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace || (echo "⚠️ Build gagal. Melakukan auto-clean & rebuild..." && ./gradlew clean assembleDebug --stacktrace)
-        else
-          gradle assembleDebug --stacktrace || (echo "⚠️ Build gagal. Melakukan auto-clean & rebuild..." && gradle clean assembleDebug --stacktrace)
-        fi
+    - name: Build Debug APK
+      run: gradle assembleDebug
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
-        path: project_src/**/build/outputs/apk/**/*.apk
+        path: app/build/outputs/apk/debug/app-debug.apk
