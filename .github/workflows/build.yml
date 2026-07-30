@@ -14,7 +14,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Setup Java JDK 17 + Cache Gradle untuk kompilasi lebih cepat
+      # 2. Setup Java JDK 17 + Cache Gradle untuk proses build lebih cepat
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -26,35 +26,51 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # 4. Beri izin eksekusi gradlew (Mendukung struktur root maupun subfolder)
-      - name: Grant execute permission for gradlew
+      # 4. Generasi otomatis gradlew jika tidak ada & atur izin eksekusi
+      - name: Setup & Grant execute permission for gradlew
         run: |
+          # Periksa apakah gradlew ada di root atau subfolder android
+          if [ ! -f "./gradlew" ] && [ ! -f "./android/gradlew" ]; then
+            echo "gradlew tidak ditemukan. Membuat Gradle Wrapper otomatis..."
+            if [ -d "./android" ] && { [ -f "./android/build.gradle" ] || [ -f "./android/build.gradle.kts" ]; }; then
+              cd android && gradle wrapper && cd ..
+            else
+              gradle wrapper
+            fi
+          fi
+
+          # Set izin eksekusi dan simpan perintah gradlew ke variabel environment
           if [ -f "./gradlew" ]; then
             chmod +x gradlew
+            echo "GRADLE_EXEC=./gradlew" >> $GITHUB_ENV
           elif [ -f "./android/gradlew" ]; then
             chmod +x android/gradlew
-          else
-            echo "Error: File gradlew tidak ditemukan!"
-            exit 1
+            echo "GRADLE_EXEC=./android/gradlew" >> $GITHUB_ENV
           fi
 
       # 5. Build APK Release
-      # (Jika proyek Anda React Native/Flutter/Monorepo, tambahkan baris `working-directory: ./android`)
       - name: Build APK Release
-        run: ./gradlew assembleRelease
+        run: $GRADLE_EXEC assembleRelease
 
-      # 6. Proses Signing & Alignment APK (Menggunakan SDK Tools resmi)
+      # 6. Process Signing & Alignment APK (Pencarian file dinamis)
       - name: Sign & Align APK
         run: |
-          # Cari lokasi zipalign & apksigner di Android SDK Runner
+          # Ambil path zipalign & apksigner terbaru dari SDK
           BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
           ZIPALIGN=$BUILD_TOOLS_DIR/zipalign
           APKSIGNER=$BUILD_TOOLS_DIR/apksigner
 
-          # Path APK
-          UNSIGNED_APK="app/build/outputs/apk/release/app-release-unsigned.apk"
-          ALIGNED_APK="app/build/outputs/apk/release/MoodReaper_Nuclear_aligned.apk"
-          FINAL_APK="app/build/outputs/apk/release/MoodReaper_Nuclear.apk"
+          # Cari APK hasil build secara otomatis
+          UNSIGNED_APK=$(find . -type f -path "*/build/outputs/apk/release/*-unsigned.apk" | head -n 1)
+
+          if [ -z "$UNSIGNED_APK" ]; then
+            UNSIGNED_APK=$(find . -type f -path "*/build/outputs/apk/release/*.apk" ! -name "*aligned*" | head -n 1)
+          fi
+
+          echo "APK yang akan di-sign: $UNSIGNED_APK"
+          APK_DIR=$(dirname "$UNSIGNED_APK")
+          ALIGNED_APK="$APK_DIR/MoodReaper_Nuclear_aligned.apk"
+          FINAL_APK="$APK_DIR/MoodReaper_Nuclear.apk"
 
           # Buat Keystore sementara (Dummy)
           keytool -genkey -v -keystore keystore.jks \
@@ -62,20 +78,23 @@ jobs:
             -dname "CN=Reaper, OU=ID, O=Reaper, L=City, S=State, C=ID" \
             -storepass 123456 -keypass 123456
 
-          # 1. Align APK terlebih dahulu
-          $ZIPALIGN -v -p 4 $UNSIGNED_APK $ALIGNED_APK
+          # 1. Align APK
+          $ZIPALIGN -v -p 4 "$UNSIGNED_APK" "$ALIGNED_APK"
 
           # 2. Sign APK menggunakan apksigner (Scheme V2/V3)
           $APKSIGNER sign --ks keystore.jks \
             --ks-pass pass:123456 \
             --ks-key-alias reaper \
             --key-pass pass:123456 \
-            --out $FINAL_APK $ALIGNED_APK
+            --out "$FINAL_APK" "$ALIGNED_APK"
+
+          # Simpan path APK akhir agar bisa diunggah di langkah berikutnya
+          echo "FINAL_APK_PATH=$FINAL_APK" >> $GITHUB_ENV
 
       # 7. Upload Hasil Akhir APK sebagai Artifact
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: MoodReaper-Nuclear
-          path: app/build/outputs/apk/release/MoodReaper_Nuclear.apk
+          path: ${{ env.FINAL_APK_PATH }}
           if-no-files-found: error
