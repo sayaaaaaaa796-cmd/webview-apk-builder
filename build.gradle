@@ -8,9 +8,5 @@ buildscript {
     }
 }
 
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
+// Blok 'allprojects { repositories { ... } }' dihapus dari sini
+// karena lokasi repositori sudah dikelola secara otomatis dan terpusat di settings.gradle
