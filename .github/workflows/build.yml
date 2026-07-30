@@ -32,11 +32,12 @@ jobs:
           if [ ! -f "./gradlew" ] && [ ! -f "./android/gradlew" ]; then
             echo "gradlew tidak ditemukan. Membuat Gradle Wrapper 8.4 di folder terisolasi..."
             
-            # Buat wrapper di folder sementara agar tidak membaca build.gradle proyek
+            # Buat folder & file dummy settings.gradle agar Gradle tidak menolak perintah
             mkdir -p /tmp/gradle-init
             cd /tmp/gradle-init
+            touch settings.gradle
             gradle wrapper --gradle-version 8.4
-            cd $GITHUB_WORKSPACE
+            cd "$GITHUB_WORKSPACE"
 
             # Tentukan lokasi tujuan (root atau subfolder android)
             if [ -d "./android" ] && { [ -f "./android/build.gradle" ] || [ -f "./android/build.gradle.kts" ]; }; then
