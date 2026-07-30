@@ -3,6 +3,8 @@ plugins {
 }
 
 android {
+    namespace 'com.mood.reaper' // <--- BARIS INI YANG DITAMBAHKAN
+
     compileSdk 34
 
     defaultConfig {
