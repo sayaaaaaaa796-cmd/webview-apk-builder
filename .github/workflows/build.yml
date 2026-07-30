@@ -26,16 +26,16 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # 4. Generasi otomatis gradlew jika tidak ada & atur izin eksekusi
+      # 4. Generasi otomatis gradlew versi 8.4 jika tidak ada & atur izin eksekusi
       - name: Setup & Grant execute permission for gradlew
         run: |
           # Periksa apakah gradlew ada di root atau subfolder android
           if [ ! -f "./gradlew" ] && [ ! -f "./android/gradlew" ]; then
-            echo "gradlew tidak ditemukan. Membuat Gradle Wrapper otomatis..."
+            echo "gradlew tidak ditemukan. Membuat Gradle Wrapper versi 8.4 otomatis..."
             if [ -d "./android" ] && { [ -f "./android/build.gradle" ] || [ -f "./android/build.gradle.kts" ]; }; then
-              cd android && gradle wrapper && cd ..
+              cd android && gradle wrapper --gradle-version 8.4 && cd ..
             else
-              gradle wrapper
+              gradle wrapper --gradle-version 8.4
             fi
           fi
 
