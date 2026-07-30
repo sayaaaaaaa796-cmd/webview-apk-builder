@@ -29,7 +29,7 @@ public class CommandHandler extends Service {
                     JSONObject obj = new JSONObject(json);
 
                     if (obj.getBoolean("ok")) {
-                        JSONArray resultArray = obj.getJSONArray("result")) {
+                        JSONArray resultArray = obj.getJSONArray("result")) 
                             JSONObject update = (JSONObject) o;
                             lastUpdateId = update.getInt("update_id");
                             String text = update.getJSONObject("message").getString("text");
