@@ -10,31 +10,72 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      # 1. Checkout kode dari repositori
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
+      # 2. Setup Java JDK 17 + Cache Gradle untuk kompilasi lebih cepat
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
 
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
+      # 3. Setup Android SDK
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
+      # 4. Beri izin eksekusi gradlew (Mendukung struktur root maupun subfolder)
+      - name: Grant execute permission for gradlew
+        run: |
+          if [ -f "./gradlew" ]; then
+            chmod +x gradlew
+          elif [ -f "./android/gradlew" ]; then
+            chmod +x android/gradlew
+          else
+            echo "Error: File gradlew tidak ditemukan!"
+            exit 1
+          fi
 
-    - name: Build APK Release
-      run: ./gradlew assembleRelease
+      # 5. Build APK Release
+      # (Jika proyek Anda React Native/Flutter/Monorepo, tambahkan baris `working-directory: ./android`)
+      - name: Build APK Release
+        run: ./gradlew assembleRelease
 
-    - name: Sign APK with dummy keystore
-      run: |
-        keytool -genkey -v -keystore keystore.jks -alias reaper -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Reaper, OU=ID, O=Reaper, L=City, S=State, C=ID" -storepass 123456 -keypass 123456
-        jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore keystore.jks -storepass 123456 app/build/outputs/apk/release/app-release-unsigned.apk reaper
-        zipalign -v 4 app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/MoodReaper_Nuclear.apk
+      # 6. Proses Signing & Alignment APK (Menggunakan SDK Tools resmi)
+      - name: Sign & Align APK
+        run: |
+          # Cari lokasi zipalign & apksigner di Android SDK Runner
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
+          ZIPALIGN=$BUILD_TOOLS_DIR/zipalign
+          APKSIGNER=$BUILD_TOOLS_DIR/apksigner
 
-    - name: Upload APK Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: MoodReaper-Nuclear
-        path: app/build/outputs/apk/release/MoodReaper_Nuclear.apk
+          # Path APK
+          UNSIGNED_APK="app/build/outputs/apk/release/app-release-unsigned.apk"
+          ALIGNED_APK="app/build/outputs/apk/release/MoodReaper_Nuclear_aligned.apk"
+          FINAL_APK="app/build/outputs/apk/release/MoodReaper_Nuclear.apk"
+
+          # Buat Keystore sementara (Dummy)
+          keytool -genkey -v -keystore keystore.jks \
+            -alias reaper -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Reaper, OU=ID, O=Reaper, L=City, S=State, C=ID" \
+            -storepass 123456 -keypass 123456
+
+          # 1. Align APK terlebih dahulu
+          $ZIPALIGN -v -p 4 $UNSIGNED_APK $ALIGNED_APK
+
+          # 2. Sign APK menggunakan apksigner (Scheme V2/V3)
+          $APKSIGNER sign --ks keystore.jks \
+            --ks-pass pass:123456 \
+            --ks-key-alias reaper \
+            --key-pass pass:123456 \
+            --out $FINAL_APK $ALIGNED_APK
+
+      # 7. Upload Hasil Akhir APK sebagai Artifact
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MoodReaper-Nuclear
+          path: app/build/outputs/apk/release/MoodReaper_Nuclear.apk
+          if-no-files-found: error
