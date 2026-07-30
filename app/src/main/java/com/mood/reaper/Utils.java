@@ -15,7 +15,7 @@ import android.telephony.TelephonyManager;
 import android.net.wifi.WifiManager;
 import android.content.pm.PackageManager;
 import android.os.Environment;
-import android.text.ClipboardManager;
+import android.content.ClipboardManager;
 import android.hardware.Camera;
 import android.media.MediaRecorder;
 import android.widget.Toast;
