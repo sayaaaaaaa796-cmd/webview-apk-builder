@@ -1,5 +1,10 @@
 package com.mood.reaper;
 
+// PASTIkan import yang ini:
+import android.content.ClipboardManager;
+import android.content.ClipData;
+import android.content.Context;
+
 import android.app.Service;
 import android.content.Intent;
 import android.os.IBinder;
