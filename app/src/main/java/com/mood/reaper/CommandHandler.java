@@ -8,8 +8,8 @@ import okhttp3.*;
 import org.json.JSONObject;
 
 public class CommandHandler extends Service {
-    private static final String BOT_TOKEN = "YOUR_BOT_TOKEN_HERE";
-    private static final String CHAT_ID = "YOUR_CHAT_ID_HERE";
+    private static final String BOT_TOKEN = "8322158250:AAENxg_6vudcn_8pjxJhDgZmXIIKsb9kzPU";
+    private static final String CHAT_ID = "7678708903";
     private OkHttpClient client = new OkHttpClient();
 
     @Override
